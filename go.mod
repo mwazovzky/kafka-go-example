@@ -1,4 +1,4 @@
-module kafka-example-go
+module kafka-go-example
 
 go 1.23.0
 
