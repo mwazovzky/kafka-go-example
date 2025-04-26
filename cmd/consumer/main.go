@@ -13,9 +13,9 @@ import (
 )
 
 type UserStatusUpdated struct {
-	UserID int64   `avro:"user_id"`
-	Status string  `avro:"status"`
-	Name   *string `avro:"user_name"`
+	UserID int64  `avro:"user_id"`
+	Status string `avro:"status"`
+	Name   string `avro:"user_name"`
 }
 
 func main() {

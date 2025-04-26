@@ -1,9 +1,7 @@
 # Kafka Go Example
 
-## Topics
+## Topic
 
-user-status-updated
-
-- name: `user-status-updated`
+- topic: `user-status-updated`
 - schema: `user-status-updated-value`
 - avro: `user-status-updated.avsc`

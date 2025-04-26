@@ -14,8 +14,8 @@
     },
     {
       "name": "user_name",
-      "type": ["null", "string"],
-      "default": null
+      "type": "string",
+      "default": ""
     }
   ]
 }

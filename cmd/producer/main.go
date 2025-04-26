@@ -12,9 +12,9 @@ import (
 )
 
 type UserStatusUpdated struct {
-	UserID int64   `avro:"user_id"`
-	Status string  `avro:"status"`
-	Name   *string `avro:"user_name"`
+	UserID int64  `avro:"user_id"`
+	Status string `avro:"status"`
+	Name   string `avro:"user_name"`
 }
 
 func main() {
@@ -54,11 +54,11 @@ func main() {
 	ser.RegisterType("UserStatusUpdated", UserStatusUpdated{})
 
 	deliveryChan := make(chan kafka.Event)
-	name := "john doe"
+
 	value := UserStatusUpdated{
 		UserID: 333,
 		Status: "blocked",
-		Name:   &name,
+		Name:   "john doe",
 	}
 
 	payload, err := ser.Serialize(topic, &value)
