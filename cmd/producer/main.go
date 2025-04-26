@@ -18,7 +18,10 @@ type UserStatusUpdated struct {
 
 func main() {
 	bootstrapServers := "localhost:9092"
-	schemaregistryURL := "http://localhost:8081"
+
+	srUrl := "http://localhost:8081"
+	srUsername := ""
+	srPassword := ""
 	topic := "user-status-updated"
 
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
@@ -30,7 +33,7 @@ func main() {
 
 	fmt.Printf("created producer %v\n", producer)
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(schemaregistryURL))
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(srUrl, srUsername, srPassword))
 
 	if err != nil {
 		fmt.Printf("failed to create schemaregistry client: %s\n", err)

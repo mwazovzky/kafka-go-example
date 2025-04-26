@@ -18,20 +18,10 @@ type UserStatusUpdated struct {
 }
 
 func main() {
-
-	// if len(os.Args) < 5 {
-	// 	fmt.Fprintf(os.Stderr, "Usage: %s <bootstrap-servers> <schema-registry> <group> <topics..>\n",
-	// 		os.Args[0])
-	// 	os.Exit(1)
-	// }
-
-	// bootstrapServers := os.Args[1]
-	// url := os.Args[2]
-	// group := os.Args[3]
-	// topics := os.Args[4:]
-
 	bootstrapServers := "localhost:9092"
-	schemaregistryURL := "http://localhost:8081"
+	srUrl := "http://localhost:8081"
+	srUsername := ""
+	srPassword := ""
 	group := "user-consumer-group"
 	topics := []string{"user-status-updated"}
 
@@ -45,13 +35,13 @@ func main() {
 		"auto.offset.reset":  "earliest"})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create consumer: %s\n", err)
+		fmt.Printf("failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("created consumer %v\n", c)
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfig(schemaregistryURL))
+	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(srUrl, srUsername, srPassword))
 
 	if err != nil {
 		fmt.Printf("failed to create schemaregistry client: %s\n", err)
@@ -68,7 +58,7 @@ func main() {
 	err = c.SubscribeTopics(topics, nil)
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to subscribe to topics: %s\n", err)
+		fmt.Printf("failed to subscribe to topics: %s\n", err)
 		os.Exit(1)
 	}
 
@@ -92,18 +82,27 @@ func main() {
 				if err != nil {
 					fmt.Printf("failed to deserialize payload: %s\n", err)
 				} else {
-					fmt.Printf("%% got message on %s:\n%+v\n", e.TopicPartition, value)
+					fmt.Printf("got new message on %s:\n%+v\n", e.TopicPartition, value)
 				}
 				if e.Headers != nil {
-					fmt.Printf("%% Headers: %v\n", e.Headers)
+					fmt.Printf("headers: %v\n", e.Headers)
 				}
 			case kafka.Error:
-				// Errors should generally be considered
-				// informational, the client will try to
-				// automatically recover.
-				fmt.Fprintf(os.Stderr, "%% error: %v: %v\n", e.Code(), e)
+				// Errors should generally be considered informational, the client will try to automatically recover.
+				fmt.Printf("error: %v: %v\n", e.Code(), e)
+			case *kafka.AssignedPartitions:
+				fmt.Printf("Assigned partitions: %v\n", e.Partitions)
+				c.Assign(e.Partitions)
+			case *kafka.RevokedPartitions:
+				fmt.Printf("Revoked partitions: %v\n", e.Partitions)
+				c.Unassign()
+			case *kafka.PartitionEOF:
+				fmt.Printf("Reached end of partition: %v\n", e)
+			case *kafka.OffsetsCommitted:
+				// Either ignore silently or log with more detail
+				fmt.Printf("Offsets committed: %v\n", e)
 			default:
-				fmt.Printf("ignored %v\n", e)
+				fmt.Printf("Ignored event: %v\n", e)
 			}
 		}
 	}
