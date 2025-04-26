@@ -9,12 +9,13 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avro"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
 type UserStatusUpdated struct {
-	UserID int64  `json:"user_id"`
-	Status string `json:"status"`
+	UserID int64   `avro:"user_id"`
+	Status string  `avro:"status"`
+	Name   *string `avro:"user_name"`
 }
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	deserializer, err := avro.NewGenericDeserializer(client, serde.ValueSerde, avro.NewDeserializerConfig())
+	deserializer, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
 
 	if err != nil {
 		fmt.Printf("failed to create deserializer: %s\n", err)
