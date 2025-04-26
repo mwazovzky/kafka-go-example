@@ -8,12 +8,13 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avro"
+	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
 type UserStatusUpdated struct {
-	UserID int64  `json:"user_id"`
-	Status string `json:"status"`
+	UserID int64   `avro:"user_id"`
+	Status string  `avro:"status"`
+	Name   *string `avro:"user_name"`
 }
 
 func main() {
@@ -40,18 +41,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	ser, err := avro.NewGenericSerializer(client, serde.ValueSerde, avro.NewSerializerConfig())
+	srCfg := avrov2.NewSerializerConfig()
+	srCfg.AutoRegisterSchemas = false
+	srCfg.UseLatestVersion = true
+	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, avrov2.NewSerializerConfig())
 
 	if err != nil {
 		fmt.Printf("failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
 
-	deliveryChan := make(chan kafka.Event)
+	ser.RegisterType("UserStatusUpdated", UserStatusUpdated{})
 
+	deliveryChan := make(chan kafka.Event)
+	name := "john doe"
 	value := UserStatusUpdated{
 		UserID: 333,
 		Status: "blocked",
+		Name:   &name,
 	}
 
 	payload, err := ser.Serialize(topic, &value)
