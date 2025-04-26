@@ -2,13 +2,12 @@ package main
 
 import (
 	"fmt"
+	"kafka-go-example/services"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
@@ -19,52 +18,47 @@ type UserStatusUpdated struct {
 }
 
 func main() {
-	bootstrapServers := "localhost:9092"
-	srUrl := "http://localhost:8081"
-	srUsername := ""
-	srPassword := ""
-	group := "user-consumer-group"
-	topics := []string{"user-status-updated"}
+	// read config
+	kafkaCfg := services.LoadKafkaConfig()
+	schemaregistryCfg := services.LoadSchemaRegistryConfig()
+	group := kafkaCfg.Group
+	topics := []string{kafkaCfg.Topic}
 
-	sigchan := make(chan os.Signal, 1)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
-
+	// create consumer
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
-		"bootstrap.servers":  bootstrapServers,
+		"bootstrap.servers":  kafkaCfg.BootstrapServers,
 		"group.id":           group,
 		"session.timeout.ms": 6000,
-		"auto.offset.reset":  "earliest"})
-
+		"auto.offset.reset":  "earliest",
+	})
 	if err != nil {
 		fmt.Printf("failed to create consumer: %s\n", err)
 		os.Exit(1)
 	}
-
+	defer c.Close()
 	fmt.Printf("created consumer %v\n", c)
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(srUrl, srUsername, srPassword))
-
-	if err != nil {
-		fmt.Printf("failed to create schemaregistry client: %s\n", err)
-		os.Exit(1)
-	}
-
-	deserializer, err := avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
-
+	// create schema registry deserializer
+	deserializer, err := services.NewAvroDeserializer(schemaregistryCfg)
 	if err != nil {
 		fmt.Printf("failed to create deserializer: %s\n", err)
 		os.Exit(1)
 	}
 
-	err = c.SubscribeTopics(topics, nil)
+	// set up signal handling
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
+	// subscribe to topics
+	err = c.SubscribeTopics(topics, nil)
 	if err != nil {
 		fmt.Printf("failed to subscribe to topics: %s\n", err)
 		os.Exit(1)
 	}
+	fmt.Printf("subscribed to topics: %v\n", topics)
 
+	// handle incoming messages
 	run := true
-
 	for run {
 		select {
 		case sig := <-sigchan:
@@ -75,39 +69,28 @@ func main() {
 			if ev == nil {
 				continue
 			}
-
-			switch e := ev.(type) {
-			case *kafka.Message:
-				value := UserStatusUpdated{}
-				err := deserializer.DeserializeInto(*e.TopicPartition.Topic, e.Value, &value)
-				if err != nil {
-					fmt.Printf("failed to deserialize payload: %s\n", err)
-				} else {
-					fmt.Printf("got new message on %s:\n%+v\n", e.TopicPartition, value)
-				}
-				if e.Headers != nil {
-					fmt.Printf("headers: %v\n", e.Headers)
-				}
-			case kafka.Error:
-				// Errors should generally be considered informational, the client will try to automatically recover.
-				fmt.Printf("error: %v: %v\n", e.Code(), e)
-			case *kafka.AssignedPartitions:
-				fmt.Printf("Assigned partitions: %v\n", e.Partitions)
-				c.Assign(e.Partitions)
-			case *kafka.RevokedPartitions:
-				fmt.Printf("Revoked partitions: %v\n", e.Partitions)
-				c.Unassign()
-			case *kafka.PartitionEOF:
-				fmt.Printf("Reached end of partition: %v\n", e)
-			case *kafka.OffsetsCommitted:
-				// Either ignore silently or log with more detail
-				fmt.Printf("Offsets committed: %v\n", e)
-			default:
-				fmt.Printf("Ignored event: %v\n", e)
-			}
+			handleKafkaEvent(ev, deserializer)
 		}
 	}
 
 	fmt.Printf("closing consumer\n")
-	c.Close()
+}
+
+func handleKafkaEvent(e kafka.Event, deserializer *avrov2.Deserializer) {
+	switch evt := e.(type) {
+	case *kafka.Message:
+		value := UserStatusUpdated{}
+		err := deserializer.DeserializeInto(*evt.TopicPartition.Topic, evt.Value, &value)
+		if err != nil {
+			fmt.Printf("failed to deserialize payload: %s\n", err)
+		} else {
+			fmt.Printf("got new message on %s:\n%+v\n", evt.TopicPartition, value)
+		}
+		if evt.Headers != nil {
+			fmt.Printf("headers: %v\n", evt.Headers)
+		}
+	// ...handle other event types as needed...
+	default:
+		fmt.Printf("Ignored event: %v\n", e)
+	}
 }

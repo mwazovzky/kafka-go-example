@@ -4,15 +4,25 @@ Go, Kafka, Avro Schema with [confluent-kafka-go](https://github.com/confluentinc
 
 ## Start services
 
+```bash
+docker compose up -d
+```
+
 ## Create topic
 
 ## Create Schema
 
 # Run Consumer
 
+```bash
+go run cmd/consumer/main.go
+```
+
 ## Run Producer
 
-## Todos
+```bash
+go run cmd/producer/main.go
+```
 
 ## Schema modification with optional fields
 
@@ -37,5 +47,3 @@ Add optional field to producer model, add field to producer model, consumer mode
 Add optional field to consumer model
 
 - messages have additonal optional field in consumer
-
-## Create abstractions

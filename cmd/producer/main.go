@@ -2,13 +2,11 @@ package main
 
 import (
 	"fmt"
+	"kafka-go-example/services"
 	"os"
 	"strconv"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde"
-	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
 type UserStatusUpdated struct {
@@ -18,63 +16,53 @@ type UserStatusUpdated struct {
 }
 
 func main() {
-	bootstrapServers := "localhost:9092"
+	// read config
+	kafkaCfg := services.LoadKafkaConfig()
+	schemaregistryCfg := services.LoadSchemaRegistryConfig()
+	topic := kafkaCfg.Topic
 
-	srUrl := "http://localhost:8081"
-	srUsername := ""
-	srPassword := ""
-	topic := "user-status-updated"
-
-	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": bootstrapServers})
-
+	// create producer
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": kafkaCfg.BootstrapServers})
 	if err != nil {
 		fmt.Printf("failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
-
+	defer producer.Close()
 	fmt.Printf("created producer %v\n", producer)
 
-	client, err := schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(srUrl, srUsername, srPassword))
-
-	if err != nil {
-		fmt.Printf("failed to create schemaregistry client: %s\n", err)
-		os.Exit(1)
-	}
-
-	srCfg := avrov2.NewSerializerConfig()
-	srCfg.AutoRegisterSchemas = false
-	srCfg.UseLatestVersion = true
-	ser, err := avrov2.NewSerializer(client, serde.ValueSerde, avrov2.NewSerializerConfig())
-
+	// create schema registry serializer
+	ser, err := services.NewAvroSerializer(schemaregistryCfg)
 	if err != nil {
 		fmt.Printf("failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
 
+	// register schema
 	ser.RegisterType("UserStatusUpdated", UserStatusUpdated{})
 
-	deliveryChan := make(chan kafka.Event)
-
+	// serialize message
 	value := UserStatusUpdated{
 		UserID: 333,
 		Status: "blocked",
 		Name:   "john doe",
 	}
-
 	payload, err := ser.Serialize(topic, &value)
-
 	if err != nil {
 		fmt.Printf("failed to serialize payload: %s\n", err)
 		os.Exit(1)
 	}
 
+	// create delivery channel and ensure its cleanup
+	deliveryChan := make(chan kafka.Event)
+	defer close(deliveryChan)
+
+	// produce message
 	err = producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            []byte(strconv.FormatInt(value.UserID, 10)),
 		Value:          payload,
 		Headers:        []kafka.Header{{Key: "test-header-key", Value: []byte("test-header-value")}},
 	}, deliveryChan)
-
 	if err != nil {
 		fmt.Printf("failed to produce message: %v\n", err)
 		os.Exit(1)
@@ -93,6 +81,4 @@ func main() {
 			m.TopicPartition.Offset,
 		)
 	}
-
-	close(deliveryChan)
 }

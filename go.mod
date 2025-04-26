@@ -1,15 +1,16 @@
 module kafka-go-example
 
-go 1.23.0
-
-require github.com/confluentinc/confluent-kafka-go/v2 v2.10.0
+go 1.24.0
 
 require (
-	github.com/actgardner/gogen-avro/v10 v10.2.1 // indirect
+	github.com/caarlos0/env/v6 v6.10.1
+	github.com/confluentinc/confluent-kafka-go/v2 v2.10.0
+	github.com/joho/godotenv v1.5.1
+)
+
+require (
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hamba/avro/v2 v2.24.0 // indirect
-	github.com/heetch/avro v0.4.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
