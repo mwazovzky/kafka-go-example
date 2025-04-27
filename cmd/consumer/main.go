@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"kafka-go-example/models"
 	"kafka-go-example/services"
 	"os"
 	"os/signal"
@@ -10,18 +11,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
-
-type Country struct {
-	Code string `avro:"code"`
-	Name string `avro:"name"`
-}
-
-type UserStatusUpdated struct {
-	UserID  int64   `avro:"user_id"`
-	Status  string  `avro:"status"`
-	Name    string  `avro:"user_name"`
-	Country Country `avro:"country"`
-}
 
 func main() {
 	// read config
@@ -85,7 +74,7 @@ func main() {
 func handleKafkaEvent(e kafka.Event, deserializer *avrov2.Deserializer) {
 	switch evt := e.(type) {
 	case *kafka.Message:
-		value := UserStatusUpdated{}
+		value := models.User{}
 		err := deserializer.DeserializeInto(*evt.TopicPartition.Topic, evt.Value, &value)
 		if err != nil {
 			fmt.Printf("failed to deserialize payload: %s\n", err)

@@ -2,93 +2,83 @@ package main
 
 import (
 	"fmt"
-	"kafka-go-example/services"
+	"log"
 	"os"
 	"strconv"
+	"time"
+
+	"kafka-go-example/models"
+	"kafka-go-example/repository"
+	"kafka-go-example/services"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	_ "github.com/go-sql-driver/mysql"
 )
 
-type Country struct {
-	Code string `avro:"code"`
-	Name string `avro:"name"`
-}
-
-type UserStatusUpdated struct {
-	UserID  int64   `avro:"user_id"`
-	Status  string  `avro:"status"`
-	Name    string  `avro:"user_name"`
-	Country Country `avro:"country"`
-}
+const query = `
+SELECT 
+	u.id as id, 
+	u.status as status, 
+	u.name as name, 
+	u.created_at as created_at, 
+	u.updated_at as updated_at, 
+	c.code as "country.code", 
+	c.name as "country.name"
+FROM users u
+JOIN countries c ON u.country_id = c.id
+WHERE u.updated_at > ?`
 
 func main() {
-	// read config
 	kafkaCfg := services.LoadKafkaConfig()
-	schemaregistryCfg := services.LoadSchemaRegistryConfig()
 	topic := kafkaCfg.Topic
-
-	// create producer
 	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": kafkaCfg.BootstrapServers})
 	if err != nil {
 		fmt.Printf("failed to create producer: %s\n", err)
 		os.Exit(1)
 	}
 	defer producer.Close()
-	fmt.Printf("created producer %v\n", producer)
 
-	// create schema registry serializer
+	ps := services.NewProducerService(producer, topic)
+	defer ps.Close()
+
+	// create serializer
+	schemaregistryCfg := services.LoadSchemaRegistryConfig()
 	ser, err := services.NewAvroSerializer(schemaregistryCfg)
 	if err != nil {
 		fmt.Printf("failed to create serializer: %s\n", err)
 		os.Exit(1)
 	}
+	schema := schemaregistryCfg.Schema
+	ser.RegisterType("User", models.User{})
 
-	// register schema
-	ser.RegisterType("UserStatusUpdated", UserStatusUpdated{})
-
-	// serialize message
-	value := UserStatusUpdated{
-		UserID: 333,
-		Status: "blocked",
-		Name:   "john doe",
-		Country: Country{
-			Code: "US",
-			Name: "United States",
-		},
-	}
-	payload, err := ser.Serialize(topic, &value)
+	// create database connection
+	dbCfg := services.LoadDatabaseConfig()
+	db, err := services.NewDatabase(dbCfg)
 	if err != nil {
-		fmt.Printf("failed to serialize payload: %s\n", err)
-		os.Exit(1)
+		log.Fatalf("failed to connect to database: %v", err)
 	}
 
-	// create delivery channel and ensure its cleanup
-	deliveryChan := make(chan kafka.Event)
-	defer close(deliveryChan)
+	userRepo := repository.NewRepository[models.User](db, query)
+	users, errs := userRepo.Stream(time.Now().Add(-24 * time.Hour))
 
-	// produce message
-	err = producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-		Key:            []byte(strconv.FormatInt(value.UserID, 10)),
-		Value:          payload,
-		Headers:        []kafka.Header{{Key: "test-header-key", Value: []byte("test-header-value")}},
-	}, deliveryChan)
-	if err != nil {
-		fmt.Printf("failed to produce message: %v\n", err)
-		os.Exit(1)
+	for user := range users {
+		payload, err := ser.Serialize(schema, &user)
+		if err != nil {
+			log.Printf("message serialisation failed for user %d: %v", user.ID, err)
+			continue
+		}
+
+		err = ps.ProduceMessage(payload, []byte(strconv.FormatInt(user.ID, 10)))
+
+		if err != nil {
+			log.Printf("failed to produce message for user %d: %v", user.ID, err)
+			continue
+		}
+
+		log.Printf("message produced for user %d", user.ID)
 	}
 
-	e := <-deliveryChan
-	m := e.(*kafka.Message)
-
-	if m.TopicPartition.Error != nil {
-		fmt.Printf("message delivery failed: %v\n", m.TopicPartition.Error)
-	} else {
-		fmt.Printf(
-			"message delivered to topic %s [%d] at offset %v\n",
-			*m.TopicPartition.Topic,
-			m.TopicPartition.Partition,
-			m.TopicPartition.Offset,
-		)
+	if err, ok := <-errs; ok && err != nil {
+		log.Printf("Error streaming users: %v", err)
 	}
 }

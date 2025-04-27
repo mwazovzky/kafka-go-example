@@ -1,6 +1,6 @@
 {
   "namespace": "kafka.example",
-  "name": "UserStatusUpdated",
+  "name": "Users",
   "type": "record",
   "fields": [
     {
@@ -8,9 +8,21 @@
       "type": "long"
     },
     {
+      "name": "name",
+      "type": "string"
+    },
+    {
       "name": "status",
       "type": "string",
       "default": "active"
+    },
+    {
+      "name": "created_at",
+      "type": "string"
+    },
+    {
+      "name": "updated_at",
+      "type": "string"
     },
     {
       "name": "country",

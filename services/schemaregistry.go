@@ -6,14 +6,6 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
-func createSchemaRegistryClient(cfg SchemaRegistryConfig) (schemaregistry.Client, error) {
-	return schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(
-		cfg.SchemaRegistryUrl,
-		cfg.SchemaRegistryUsername,
-		cfg.SchemaRegistryPassword,
-	))
-}
-
 // NewAvroSerializer returns an Avro serializer using the provided configuration.
 func NewAvroSerializer(cfg SchemaRegistryConfig) (*avrov2.Serializer, error) {
 	client, err := createSchemaRegistryClient(cfg)
@@ -26,6 +18,14 @@ func NewAvroSerializer(cfg SchemaRegistryConfig) (*avrov2.Serializer, error) {
 	return avrov2.NewSerializer(client, serde.ValueSerde, srCfg)
 }
 
+func createSchemaRegistryClient(cfg SchemaRegistryConfig) (schemaregistry.Client, error) {
+	return schemaregistry.NewClient(schemaregistry.NewConfigWithAuthentication(
+		cfg.SchemaRegistryUrl,
+		cfg.SchemaRegistryUsername,
+		cfg.SchemaRegistryPassword,
+	))
+}
+
 // NewAvroDeserializer returns an Avro deserializer using the provided configuration.
 func NewAvroDeserializer(cfg SchemaRegistryConfig) (*avrov2.Deserializer, error) {
 	client, err := createSchemaRegistryClient(cfg)
@@ -34,3 +34,6 @@ func NewAvroDeserializer(cfg SchemaRegistryConfig) (*avrov2.Deserializer, error)
 	}
 	return avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
 }
+
+// Change type alias for AvroSerializer to be a pointer, ensuring compatibility.
+type AvroSerializer = *avrov2.Serializer

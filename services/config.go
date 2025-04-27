@@ -28,6 +28,16 @@ type SchemaRegistryConfig struct {
 	Schema                 string `env:"SCHEMA_REGISTRY_SCHEMA"`
 }
 
+// Add new DatabaseConfig struct for MySQL configuration.
+type DatabaseConfig struct {
+	Host         string `env:"MYSQL_HOST" envDefault:"localhost"`
+	Port         int    `env:"MYSQL_PORT" envDefault:"3306"`
+	RootPassword string `env:"MYSQL_ROOT_PASSWORD"`
+	Database     string `env:"MYSQL_DATABASE"`
+	User         string `env:"MYSQL_USER"`
+	Password     string `env:"MYSQL_PASSWORD"`
+}
+
 // LoadKafkaConfig loads KafkaConfig using github.com/caarlos0/env/v6.
 func LoadKafkaConfig() KafkaConfig {
 	var cfg KafkaConfig
@@ -42,6 +52,15 @@ func LoadSchemaRegistryConfig() SchemaRegistryConfig {
 	var cfg SchemaRegistryConfig
 	if err := env.Parse(&cfg); err != nil {
 		log.Printf("Failed to parse SchemaRegistryConfig from env: %v", err)
+	}
+	return cfg
+}
+
+// Add a new function to load DatabaseConfig
+func LoadDatabaseConfig() DatabaseConfig {
+	var cfg DatabaseConfig
+	if err := env.Parse(&cfg); err != nil {
+		log.Printf("Failed to parse DatabaseConfig from env: %v", err)
 	}
 	return cfg
 }
