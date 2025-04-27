@@ -13,9 +13,21 @@
       "default": "active"
     },
     {
-      "name": "user_name",
-      "type": "string",
-      "default": ""
+      "name": "country",
+      "type": {
+        "type": "record",
+        "name": "Country",
+        "fields": [
+          {
+            "name": "code",
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          }
+        ]
+      }
     }
   ]
 }

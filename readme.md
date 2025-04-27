@@ -10,7 +10,11 @@ docker compose up -d
 
 ## Create topic
 
+`user-status-updated`
+
 ## Create Schema
+
+`user-status-updated-value`
 
 # Run Consumer
 

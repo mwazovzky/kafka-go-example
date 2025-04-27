@@ -11,10 +11,16 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
+type Country struct {
+	Code string `avro:"code"`
+	Name string `avro:"name"`
+}
+
 type UserStatusUpdated struct {
-	UserID int64  `avro:"user_id"`
-	Status string `avro:"status"`
-	Name   string `avro:"user_name"`
+	UserID  int64   `avro:"user_id"`
+	Status  string  `avro:"status"`
+	Name    string  `avro:"user_name"`
+	Country Country `avro:"country"`
 }
 
 func main() {
