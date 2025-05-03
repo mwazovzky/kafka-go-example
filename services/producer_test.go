@@ -37,7 +37,6 @@ func TestProduceMessage_Success(t *testing.T) {
 	topic := "test-topic"
 	ps := &ProducerService{
 		Producer:     mockProducer,
-		Topic:        topic,
 		DeliveryChan: make(chan kafka.Event, 1),
 	}
 
@@ -47,7 +46,7 @@ func TestProduceMessage_Success(t *testing.T) {
 	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(nil, nil)
 
 	// Act
-	err := ps.ProduceMessage(payload, key)
+	err := ps.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.NoError(t, err)
@@ -60,7 +59,6 @@ func TestProduceMessage_ProduceError(t *testing.T) {
 	topic := "test-topic"
 	ps := &ProducerService{
 		Producer:     mockProducer,
-		Topic:        topic,
 		DeliveryChan: make(chan kafka.Event, 1),
 	}
 
@@ -70,7 +68,7 @@ func TestProduceMessage_ProduceError(t *testing.T) {
 	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(errors.New("produce error"), nil)
 
 	// Act
-	err := ps.ProduceMessage(payload, key)
+	err := ps.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.Error(t, err)
@@ -84,7 +82,6 @@ func TestProduceMessage_DeliveryError(t *testing.T) {
 	topic := "test-topic"
 	ps := &ProducerService{
 		Producer:     mockProducer,
-		Topic:        topic,
 		DeliveryChan: make(chan kafka.Event, 1),
 	}
 
@@ -94,7 +91,7 @@ func TestProduceMessage_DeliveryError(t *testing.T) {
 	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(nil, errors.New("delivery error"))
 
 	// Act
-	err := ps.ProduceMessage(payload, key)
+	err := ps.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.Error(t, err)
@@ -109,7 +106,6 @@ func TestClose(t *testing.T) {
 
 	ps := &ProducerService{
 		Producer:     mockProducer,
-		Topic:        "test-topic",
 		DeliveryChan: make(chan kafka.Event, 1),
 	}
 

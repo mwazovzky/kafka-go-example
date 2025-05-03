@@ -1,0 +1,5 @@
+name: "user"
+query_file: "queries/users.sql"
+topic: "user-topic"
+schema: "user-schema"
+interval: "10s"

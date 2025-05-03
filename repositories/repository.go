@@ -1,4 +1,4 @@
-package repository
+package repositories
 
 import (
 	"time"
@@ -6,16 +6,16 @@ import (
 	"github.com/jmoiron/sqlx"
 )
 
-type Repositort[T any] struct {
+type Repository[T any] struct {
 	db    *sqlx.DB
 	query string
 }
 
-func NewRepository[T any](db *sqlx.DB, query string) *Repositort[T] {
-	return &Repositort[T]{db: db, query: query}
+func NewRepository[T any](db *sqlx.DB, query string) *Repository[T] {
+	return &Repository[T]{db: db, query: query}
 }
 
-func (r *Repositort[T]) Stream(since time.Time) (<-chan T, <-chan error) {
+func (r *Repository[T]) Stream(since time.Time) (<-chan T, <-chan error) {
 	out := make(chan T)
 	errs := make(chan error, 1)
 

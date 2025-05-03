@@ -13,23 +13,21 @@ type Producer interface {
 // ProducerService encapsulates Kafka producer logic.
 type ProducerService struct {
 	Producer     Producer
-	Topic        string
 	DeliveryChan chan kafka.Event
 }
 
 // NewProducerService creates a new ProducerService with a reusable delivery channel.
-func NewProducerService(p Producer, topic string) *ProducerService {
+func NewProducerService(p Producer) *ProducerService {
 	return &ProducerService{
 		Producer:     p,
-		Topic:        topic,
 		DeliveryChan: make(chan kafka.Event, 1), // Buffered channel for better performance.
 	}
 }
 
 // ProduceMessage encapsulates publishing a message and handling delivery events.
-func (ps *ProducerService) ProduceMessage(payload []byte, key []byte) error {
+func (ps *ProducerService) ProduceMessage(topic string, payload []byte, key []byte) error {
 	err := ps.Producer.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{Topic: &ps.Topic, Partition: kafka.PartitionAny},
+		TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
 		Key:            key,
 		Value:          payload,
 	}, ps.DeliveryChan)
@@ -49,4 +47,13 @@ func (ps *ProducerService) ProduceMessage(payload []byte, key []byte) error {
 func (ps *ProducerService) Close() {
 	close(ps.DeliveryChan)
 	ps.Producer.Close()
+}
+
+// NewKafkaProducer creates a new Kafka producer.
+func NewKafkaProducer(cfg KafkaConfig) (*ProducerService, error) {
+	producer, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": cfg.BootstrapServers})
+	if err != nil {
+		return nil, err
+	}
+	return NewProducerService(producer), nil
 }

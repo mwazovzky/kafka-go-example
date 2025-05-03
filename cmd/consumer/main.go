@@ -12,12 +12,14 @@ import (
 	"github.com/confluentinc/confluent-kafka-go/v2/schemaregistry/serde/avrov2"
 )
 
+const topic = "user-topic"
+
 func main() {
 	// read config
 	kafkaCfg := services.LoadKafkaConfig()
 	schemaregistryCfg := services.LoadSchemaRegistryConfig()
 	group := kafkaCfg.Group
-	topics := []string{kafkaCfg.Topic}
+	topics := []string{topic}
 
 	// create consumer
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{

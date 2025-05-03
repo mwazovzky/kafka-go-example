@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"kafka-go-example/models"
-	"kafka-go-example/repository"
+	"kafka-go-example/repositories"
 	"kafka-go-example/services"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -37,7 +37,7 @@ func main() {
 	defer db.Close()
 
 	// Initialize repositories
-	userRepo := repository.NewRepository[models.User](db, query)
+	userRepo := repositories.NewRepository[models.User](db, query)
 
 	users, errs := userRepo.Stream(time.Now().Add(-24 * time.Hour))
 

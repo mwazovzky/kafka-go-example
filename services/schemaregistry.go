@@ -7,7 +7,7 @@ import (
 )
 
 // NewAvroSerializer returns an Avro serializer using the provided configuration.
-func NewAvroSerializer(cfg SchemaRegistryConfig) (*avrov2.Serializer, error) {
+func NewAvroSerializer(cfg SchemaRegistryConfig) (*AvroSerializer, error) {
 	client, err := createSchemaRegistryClient(cfg)
 	if err != nil {
 		return nil, err
@@ -15,7 +15,11 @@ func NewAvroSerializer(cfg SchemaRegistryConfig) (*avrov2.Serializer, error) {
 	srCfg := avrov2.NewSerializerConfig()
 	srCfg.AutoRegisterSchemas = cfg.AutoRegisterSchemas
 	srCfg.UseLatestVersion = cfg.UseLatestVersion
-	return avrov2.NewSerializer(client, serde.ValueSerde, srCfg)
+	serializer, err := avrov2.NewSerializer(client, serde.ValueSerde, srCfg)
+	if err != nil {
+		return nil, err
+	}
+	return &AvroSerializer{serializer: serializer}, nil
 }
 
 func createSchemaRegistryClient(cfg SchemaRegistryConfig) (schemaregistry.Client, error) {
@@ -35,5 +39,12 @@ func NewAvroDeserializer(cfg SchemaRegistryConfig) (*avrov2.Deserializer, error)
 	return avrov2.NewDeserializer(client, serde.ValueSerde, avrov2.NewDeserializerConfig())
 }
 
-// Change type alias for AvroSerializer to be a pointer, ensuring compatibility.
-type AvroSerializer = *avrov2.Serializer
+// AvroSerializer wraps the avrov2.Serializer to add custom methods.
+type AvroSerializer struct {
+	serializer *avrov2.Serializer
+}
+
+// Serialize serializes the given data into Avro format using the specified schema.
+func (s *AvroSerializer) Serialize(schema string, data interface{}) ([]byte, error) {
+	return s.serializer.Serialize(schema, data)
+}
