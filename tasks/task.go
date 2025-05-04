@@ -16,6 +16,11 @@ type RepositoryInterface[T any] interface {
 	Stream(since time.Time) (<-chan T, <-chan error)
 }
 
+type SyncRepositoryInterface interface {
+	Get(task string) (time.Time, error)
+	Set(task string, syncedAt time.Time) error
+}
+
 type SerializerInterface interface {
 	Serialize(schema string, data interface{}) ([]byte, error)
 }
@@ -28,6 +33,7 @@ type ProducerInterface interface {
 type Task[T any] struct {
 	Config     config.TaskConfig
 	Repository RepositoryInterface[T]
+	SyncRepo   SyncRepositoryInterface
 	Serializer SerializerInterface
 	Producer   ProducerInterface
 }
@@ -38,11 +44,13 @@ func NewTask[T any](db *sqlx.DB, config config.TaskConfig, serializer Serializer
 		return nil, err
 	}
 
+	syncRepo := repositories.NewSyncRepository(db)
 	repo := repositories.NewRepository[T](db, query)
 
 	return &Task[T]{
 		Config:     config,
 		Repository: repo,
+		SyncRepo:   syncRepo,
 		Serializer: serializer,
 		Producer:   producer,
 	}, nil
@@ -50,7 +58,14 @@ func NewTask[T any](db *sqlx.DB, config config.TaskConfig, serializer Serializer
 
 func (t *Task[T]) Execute() {
 	const TimeDelay = 24 * time.Hour
-	data, errs := t.Repository.Stream(time.Now().Add(-TimeDelay))
+	syncedAt, err := t.SyncRepo.Get(t.Config.Name)
+	if err != nil {
+		log.Printf("Failed to get last sync time: %v", err)
+		return
+	}
+
+	data, errs := t.Repository.Stream(syncedAt)
+	syncedAt = time.Now()
 
 	for item := range data {
 		payload, err := t.Serializer.Serialize(t.Config.Schema, &item)
@@ -70,6 +85,12 @@ func (t *Task[T]) Execute() {
 
 	if err, ok := <-errs; ok && err != nil {
 		log.Printf("Error streaming data: %v", err)
+	}
+
+	err = t.SyncRepo.Set(t.Config.Name, syncedAt)
+	if err != nil {
+		log.Printf("Failed to set sync time: %v", err)
+		return
 	}
 
 	log.Printf("Task <%s> completed", t.Config.Name)

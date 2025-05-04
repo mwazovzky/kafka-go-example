@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// Mock implementations
 type MockRepository struct {
 	mock.Mock
 }
@@ -22,6 +21,20 @@ type MockRepository struct {
 func (m *MockRepository) Stream(since time.Time) (<-chan TestModel, <-chan error) {
 	args := m.Called(since)
 	return args.Get(0).(chan TestModel), args.Get(1).(chan error)
+}
+
+type MockSyncRepository struct {
+	mock.Mock
+}
+
+func (m *MockSyncRepository) Get(task string) (time.Time, error) {
+	args := m.Called(task)
+	return args.Get(0).(time.Time), args.Error(1)
+}
+
+func (m *MockSyncRepository) Set(task string, syncedAt time.Time) error {
+	args := m.Called(task, syncedAt)
+	return args.Error(0)
 }
 
 type MockSerializer struct {
@@ -46,7 +59,6 @@ func (m *MockProducer) Close() {
 	m.Called()
 }
 
-// Test model
 type TestModel struct {
 	ID   int    `db:"id"`
 	Name string `db:"name"`
@@ -105,7 +117,7 @@ func TestNewTask_QueryFileError(t *testing.T) {
 
 	config := config.TaskConfig{
 		Name:      "test",
-		QueryFile: "non-existent-file.sql", // This file doesn't exist
+		QueryFile: "non-existent-file.sql",
 		Topic:     "test-topic",
 		Schema:    "test-schema",
 		Interval:  10 * time.Second,
@@ -121,26 +133,26 @@ func TestNewTask_QueryFileError(t *testing.T) {
 }
 
 func TestExecute_Success(t *testing.T) {
-	// Setup
+	// Arrange
 	mockRepo := new(MockRepository)
+	mockSyncRepo := new(MockSyncRepository)
 	mockSerializer := new(MockSerializer)
 	mockProducer := new(MockProducer)
 
 	dataChan := make(chan TestModel, 2)
 	errChan := make(chan error, 1)
 
-	// Create test data
 	testItem1 := TestModel{ID: 1, Name: "Test 1"}
 	testItem2 := TestModel{ID: 2, Name: "Test 2"}
 
-	// Configure mock behaviors
 	mockRepo.On("Stream", mock.AnythingOfType("time.Time")).Return(dataChan, errChan)
+	mockSyncRepo.On("Get", "test").Return(time.Now().Add(-time.Hour), nil)
+	mockSyncRepo.On("Set", "test", mock.AnythingOfType("time.Time")).Return(nil)
 	mockSerializer.On("Serialize", "test-schema", &testItem1).Return([]byte("serialized1"), nil)
 	mockSerializer.On("Serialize", "test-schema", &testItem2).Return([]byte("serialized2"), nil)
 	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized1"), mock.Anything).Return(nil)
 	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized2"), mock.Anything).Return(nil)
 
-	// Create task
 	task := &Task[TestModel]{
 		Config: config.TaskConfig{
 			Name:   "test",
@@ -148,12 +160,12 @@ func TestExecute_Success(t *testing.T) {
 			Schema: "test-schema",
 		},
 		Repository: mockRepo,
+		SyncRepo:   mockSyncRepo,
 		Serializer: mockSerializer,
 		Producer:   mockProducer,
 	}
 
 	// Act
-	// Send data to dataChan in a goroutine to simulate streaming
 	go func() {
 		dataChan <- testItem1
 		dataChan <- testItem2
@@ -165,30 +177,31 @@ func TestExecute_Success(t *testing.T) {
 
 	// Assert
 	mockRepo.AssertExpectations(t)
+	mockSyncRepo.AssertExpectations(t)
 	mockSerializer.AssertExpectations(t)
 	mockProducer.AssertExpectations(t)
 }
 
 func TestExecute_SerializeError(t *testing.T) {
-	// Setup
+	// Arrange
 	mockRepo := new(MockRepository)
+	mockSyncRepo := new(MockSyncRepository)
 	mockSerializer := new(MockSerializer)
 	mockProducer := new(MockProducer)
 
 	dataChan := make(chan TestModel, 2)
 	errChan := make(chan error, 1)
 
-	// Create test data
 	testItem1 := TestModel{ID: 1, Name: "Test 1"}
 	testItem2 := TestModel{ID: 2, Name: "Test 2"}
 
-	// Configure mock behaviors
 	mockRepo.On("Stream", mock.AnythingOfType("time.Time")).Return(dataChan, errChan)
+	mockSyncRepo.On("Get", "test").Return(time.Now().Add(-time.Hour), nil)
+	mockSyncRepo.On("Set", "test", mock.AnythingOfType("time.Time")).Return(nil)
 	mockSerializer.On("Serialize", "test-schema", &testItem1).Return([]byte{}, errors.New("serialize error"))
 	mockSerializer.On("Serialize", "test-schema", &testItem2).Return([]byte("serialized2"), nil)
 	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized2"), mock.Anything).Return(nil)
 
-	// Create task
 	task := &Task[TestModel]{
 		Config: config.TaskConfig{
 			Name:   "test",
@@ -196,6 +209,7 @@ func TestExecute_SerializeError(t *testing.T) {
 			Schema: "test-schema",
 		},
 		Repository: mockRepo,
+		SyncRepo:   mockSyncRepo,
 		Serializer: mockSerializer,
 		Producer:   mockProducer,
 	}
@@ -212,31 +226,32 @@ func TestExecute_SerializeError(t *testing.T) {
 
 	// Assert
 	mockRepo.AssertExpectations(t)
+	mockSyncRepo.AssertExpectations(t)
 	mockSerializer.AssertExpectations(t)
 	mockProducer.AssertExpectations(t)
 }
 
 func TestExecute_ProduceError(t *testing.T) {
-	// Setup
+	// Arrange
 	mockRepo := new(MockRepository)
+	mockSyncRepo := new(MockSyncRepository)
 	mockSerializer := new(MockSerializer)
 	mockProducer := new(MockProducer)
 
 	dataChan := make(chan TestModel, 2)
 	errChan := make(chan error, 1)
 
-	// Create test data
 	testItem1 := TestModel{ID: 1, Name: "Test 1"}
 	testItem2 := TestModel{ID: 2, Name: "Test 2"}
 
-	// Configure mock behaviors
 	mockRepo.On("Stream", mock.AnythingOfType("time.Time")).Return(dataChan, errChan)
+	mockSyncRepo.On("Get", "test").Return(time.Now().Add(-time.Hour), nil)
+	mockSyncRepo.On("Set", "test", mock.AnythingOfType("time.Time")).Return(nil)
 	mockSerializer.On("Serialize", "test-schema", &testItem1).Return([]byte("serialized1"), nil)
 	mockSerializer.On("Serialize", "test-schema", &testItem2).Return([]byte("serialized2"), nil)
 	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized1"), mock.Anything).Return(errors.New("produce error"))
 	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized2"), mock.Anything).Return(nil)
 
-	// Create task
 	task := &Task[TestModel]{
 		Config: config.TaskConfig{
 			Name:   "test",
@@ -244,6 +259,7 @@ func TestExecute_ProduceError(t *testing.T) {
 			Schema: "test-schema",
 		},
 		Repository: mockRepo,
+		SyncRepo:   mockSyncRepo,
 		Serializer: mockSerializer,
 		Producer:   mockProducer,
 	}
@@ -260,23 +276,25 @@ func TestExecute_ProduceError(t *testing.T) {
 
 	// Assert
 	mockRepo.AssertExpectations(t)
+	mockSyncRepo.AssertExpectations(t)
 	mockSerializer.AssertExpectations(t)
 	mockProducer.AssertExpectations(t)
 }
 
 func TestExecute_StreamError(t *testing.T) {
-	// Setup
+	// Arrange
 	mockRepo := new(MockRepository)
+	mockSyncRepo := new(MockSyncRepository)
 	mockSerializer := new(MockSerializer)
 	mockProducer := new(MockProducer)
 
 	dataChan := make(chan TestModel)
 	errChan := make(chan error, 1)
 
-	// Configure mock behaviors
 	mockRepo.On("Stream", mock.AnythingOfType("time.Time")).Return(dataChan, errChan)
+	mockSyncRepo.On("Get", "test").Return(time.Now(), nil)
+	mockSyncRepo.On("Set", "test", mock.AnythingOfType("time.Time")).Return(nil)
 
-	// Create task
 	task := &Task[TestModel]{
 		Config: config.TaskConfig{
 			Name:   "test",
@@ -284,6 +302,7 @@ func TestExecute_StreamError(t *testing.T) {
 			Schema: "test-schema",
 		},
 		Repository: mockRepo,
+		SyncRepo:   mockSyncRepo,
 		Serializer: mockSerializer,
 		Producer:   mockProducer,
 	}
@@ -299,7 +318,7 @@ func TestExecute_StreamError(t *testing.T) {
 
 	// Assert
 	mockRepo.AssertExpectations(t)
-	// No calls to serializer or producer expected since the stream has errors
+	mockSyncRepo.AssertExpectations(t)
 }
 
 func TestCreateTask_Success(t *testing.T) {
@@ -313,7 +332,7 @@ func TestCreateTask_Success(t *testing.T) {
 	assert.NoError(t, err)
 	tmpFile.Close()
 
-	// Setup
+	// Arrange
 	db, _, err := sqlmock.New()
 	assert.NoError(t, err)
 	defer db.Close()
@@ -323,7 +342,7 @@ func TestCreateTask_Success(t *testing.T) {
 	producer := new(MockProducer)
 
 	config := config.TaskConfig{
-		Name:      "user", // Matches case in CreateTask switch
+		Name:      "user",
 		QueryFile: tmpFile.Name(),
 		Topic:     "user-topic",
 		Schema:    "user-schema",
@@ -335,13 +354,12 @@ func TestCreateTask_Success(t *testing.T) {
 	// Assert
 	assert.NoError(t, err)
 	assert.NotNil(t, task)
-	// Verify the task implements TaskInterface
 	_, ok := task.(TaskInterface)
 	assert.True(t, ok)
 }
 
 func TestCreateTask_UnsupportedType(t *testing.T) {
-	// Setup
+	// Arrange
 	db, _, err := sqlmock.New()
 	assert.NoError(t, err)
 	defer db.Close()
@@ -351,7 +369,7 @@ func TestCreateTask_UnsupportedType(t *testing.T) {
 	producer := new(MockProducer)
 
 	config := config.TaskConfig{
-		Name: "unknown", // Not supported in CreateTask switch
+		Name: "unknown",
 	}
 
 	// Act
@@ -391,4 +409,54 @@ func TestLoadQueryFromFile_Error(t *testing.T) {
 	assert.Error(t, err)
 	assert.Empty(t, sql)
 	assert.Contains(t, err.Error(), "failed to open query file")
+}
+
+func TestExecute_SyncRepoIntegration(t *testing.T) {
+	// Arrange
+	mockRepo := new(MockRepository)
+	mockSyncRepo := new(MockSyncRepository)
+	mockSerializer := new(MockSerializer)
+	mockProducer := new(MockProducer)
+
+	dataChan := make(chan TestModel, 2)
+	errChan := make(chan error, 1)
+
+	testItem1 := TestModel{ID: 1, Name: "Test 1"}
+	testItem2 := TestModel{ID: 2, Name: "Test 2"}
+
+	mockRepo.On("Stream", mock.AnythingOfType("time.Time")).Return(dataChan, errChan)
+	mockSyncRepo.On("Get", "test").Return(time.Now().Add(-time.Hour), nil)
+	mockSyncRepo.On("Set", "test", mock.AnythingOfType("time.Time")).Return(nil)
+	mockSerializer.On("Serialize", "test-schema", &testItem1).Return([]byte("serialized1"), nil)
+	mockSerializer.On("Serialize", "test-schema", &testItem2).Return([]byte("serialized2"), nil)
+	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized1"), mock.Anything).Return(nil)
+	mockProducer.On("ProduceMessage", "test-topic", []byte("serialized2"), mock.Anything).Return(nil)
+
+	task := &Task[TestModel]{
+		Config: config.TaskConfig{
+			Name:   "test",
+			Topic:  "test-topic",
+			Schema: "test-schema",
+		},
+		Repository: mockRepo,
+		SyncRepo:   mockSyncRepo,
+		Serializer: mockSerializer,
+		Producer:   mockProducer,
+	}
+
+	// Act
+	go func() {
+		dataChan <- testItem1
+		dataChan <- testItem2
+		close(dataChan)
+		close(errChan)
+	}()
+
+	task.Execute()
+
+	// Assert
+	mockRepo.AssertExpectations(t)
+	mockSyncRepo.AssertExpectations(t)
+	mockSerializer.AssertExpectations(t)
+	mockProducer.AssertExpectations(t)
 }
