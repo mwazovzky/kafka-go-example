@@ -1,4 +1,4 @@
-package services
+package kafka
 
 import (
 	"errors"
@@ -35,18 +35,18 @@ func TestProduceMessage_Success(t *testing.T) {
 	// Arrange
 	mockProducer := new(MockProducer)
 	topic := "test-topic"
-	ps := &ProducerService{
-		Producer:     mockProducer,
-		DeliveryChan: make(chan kafka.Event, 1),
+	producer := &Producer{
+		producer:     mockProducer,
+		deliveryChan: make(chan kafka.Event, 1),
 	}
 
 	payload := []byte("test-payload")
 	key := []byte("test-key")
 
-	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(nil, nil)
+	mockProducer.On("Produce", mock.Anything, producer.deliveryChan).Return(nil, nil)
 
 	// Act
-	err := ps.ProduceMessage(topic, payload, key)
+	err := producer.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.NoError(t, err)
@@ -57,18 +57,18 @@ func TestProduceMessage_ProduceError(t *testing.T) {
 	// Arrange
 	mockProducer := new(MockProducer)
 	topic := "test-topic"
-	ps := &ProducerService{
-		Producer:     mockProducer,
-		DeliveryChan: make(chan kafka.Event, 1),
+	producer := &Producer{
+		producer:     mockProducer,
+		deliveryChan: make(chan kafka.Event, 1),
 	}
 
 	payload := []byte("test-payload")
 	key := []byte("test-key")
 
-	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(errors.New("produce error"), nil)
+	mockProducer.On("Produce", mock.Anything, producer.deliveryChan).Return(errors.New("produce error"), nil)
 
 	// Act
-	err := ps.ProduceMessage(topic, payload, key)
+	err := producer.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.Error(t, err)
@@ -80,18 +80,18 @@ func TestProduceMessage_DeliveryError(t *testing.T) {
 	// Arrange
 	mockProducer := new(MockProducer)
 	topic := "test-topic"
-	ps := &ProducerService{
-		Producer:     mockProducer,
-		DeliveryChan: make(chan kafka.Event, 1),
+	producer := &Producer{
+		producer:     mockProducer,
+		deliveryChan: make(chan kafka.Event, 1),
 	}
 
 	payload := []byte("test-payload")
 	key := []byte("test-key")
 
-	mockProducer.On("Produce", mock.Anything, ps.DeliveryChan).Return(nil, errors.New("delivery error"))
+	mockProducer.On("Produce", mock.Anything, producer.deliveryChan).Return(nil, errors.New("delivery error"))
 
 	// Act
-	err := ps.ProduceMessage(topic, payload, key)
+	err := producer.ProduceMessage(topic, payload, key)
 
 	// Assert
 	assert.Error(t, err)
@@ -104,15 +104,15 @@ func TestClose(t *testing.T) {
 	mockProducer := new(MockProducer)
 	mockProducer.On("Close").Return()
 
-	ps := &ProducerService{
-		Producer:     mockProducer,
-		DeliveryChan: make(chan kafka.Event, 1),
+	producer := &Producer{
+		producer:     mockProducer,
+		deliveryChan: make(chan kafka.Event, 1),
 	}
 
 	// Act
-	ps.Close()
+	producer.Close()
 
 	// Assert
-	assert.Panics(t, func() { close(ps.DeliveryChan) }) // Ensure the channel is closed.
+	assert.Panics(t, func() { close(producer.deliveryChan) }) // Ensure the channel is closed.
 	mockProducer.AssertExpectations(t)
 }

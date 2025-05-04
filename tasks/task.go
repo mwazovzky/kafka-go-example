@@ -1,4 +1,4 @@
-package services
+package tasks
 
 import (
 	"fmt"
@@ -6,25 +6,33 @@ import (
 	"os"
 	"time"
 
-	"kafka-go-example/models"
+	"kafka-go-example/infra/config"
 	"kafka-go-example/repositories"
 
 	"github.com/jmoiron/sqlx"
 )
 
-// TaskInterface defines the behavior of a task.
-type TaskInterface interface {
-	Execute()
+type RepositoryInterface[T any] interface {
+	Stream(since time.Time) (<-chan T, <-chan error)
+}
+
+type SerializerInterface interface {
+	Serialize(schema string, data interface{}) ([]byte, error)
+}
+
+type ProducerInterface interface {
+	ProduceMessage(topic string, payload []byte, key []byte) error
+	Close()
 }
 
 type Task[T any] struct {
-	Config     TaskConfig
-	Repository *repositories.Repository[T]
-	Serializer *AvroSerializer
-	Producer   *ProducerService
+	Config     config.TaskConfig
+	Repository RepositoryInterface[T]
+	Serializer SerializerInterface
+	Producer   ProducerInterface
 }
 
-func NewTask[T any](db *sqlx.DB, config TaskConfig, serializer *AvroSerializer, producer *ProducerService) (*Task[T], error) {
+func NewTask[T any](db *sqlx.DB, config config.TaskConfig, serializer SerializerInterface, producer ProducerInterface) (*Task[T], error) {
 	query, err := loadQueryFromFile(config.QueryFile)
 	if err != nil {
 		return nil, err
@@ -65,17 +73,6 @@ func (t *Task[T]) Execute() {
 	}
 
 	log.Printf("Task <%s> completed", t.Config.Name)
-}
-
-// CreateTask dynamically creates a Task based on the model name.
-func CreateTask(db *sqlx.DB, cfg TaskConfig, serializer *AvroSerializer, producer *ProducerService) (TaskInterface, error) {
-	switch cfg.Name {
-	case "user":
-		return NewTask[models.User](db, cfg, serializer, producer)
-	// Add cases for other models here
-	default:
-		return nil, fmt.Errorf("unsupported task name: %s", cfg.Name)
-	}
 }
 
 func loadQueryFromFile(filePath string) (string, error) {

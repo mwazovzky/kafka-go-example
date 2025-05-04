@@ -5,9 +5,10 @@ import (
 	"log"
 	"time"
 
+	"kafka-go-example/infra/config"
+	"kafka-go-example/infra/database"
 	"kafka-go-example/models"
 	"kafka-go-example/repositories"
-	"kafka-go-example/services"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -27,10 +28,10 @@ WHERE u.updated_at > ?`
 
 func main() {
 	// Load configurations
-	dbCfg := services.LoadDatabaseConfig()
+	dbCfg := config.LoadDatabaseConfig()
 
 	// Create database connection
-	db, err := services.NewDatabase(dbCfg)
+	db, err := database.NewDatabase(dbCfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}

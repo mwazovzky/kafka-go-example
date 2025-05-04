@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
+	"kafka-go-example/infra/avro"
+	"kafka-go-example/infra/config"
 	"kafka-go-example/models"
-	"kafka-go-example/services"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,8 +17,8 @@ const topic = "user-topic"
 
 func main() {
 	// read config
-	kafkaCfg := services.LoadKafkaConfig()
-	schemaregistryCfg := services.LoadSchemaRegistryConfig()
+	kafkaCfg := config.LoadKafkaConfig()
+	schemaregistryCfg := config.LoadSchemaRegistryConfig()
 	group := kafkaCfg.Group
 	topics := []string{topic}
 
@@ -36,7 +37,7 @@ func main() {
 	fmt.Printf("created consumer %v\n", c)
 
 	// create schema registry deserializer
-	deserializer, err := services.NewAvroDeserializer(schemaregistryCfg)
+	deserializer, err := avro.NewAvroDeserializer(schemaregistryCfg)
 	if err != nil {
 		fmt.Printf("failed to create deserializer: %s\n", err)
 		os.Exit(1)
@@ -81,7 +82,7 @@ func handleKafkaEvent(e kafka.Event, deserializer *avrov2.Deserializer) {
 		if err != nil {
 			fmt.Printf("failed to deserialize payload: %s\n", err)
 		} else {
-			fmt.Printf("got new message on %s:\n%+v\n", evt.TopicPartition, value)
+			fmt.Printf("Incoming message on %s:\n%+v\n\n", evt.TopicPartition, value)
 		}
 		if evt.Headers != nil {
 			fmt.Printf("headers: %v\n", evt.Headers)
